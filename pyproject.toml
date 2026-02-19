@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gliner2-mcp"
+version = "0.1.0"
+description = "MCP server exposing GLiNER2 entity extraction, classification, and JSON parsing."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "gliner2-mcp contributors" }]
+keywords = ["mcp", "gliner2", "nlp", "ner", "classification"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = ["gliner2", "mcp", "requests", "urllib3"]
+
+[project.urls]
+Homepage = "https://mrorigo.github.io/gliner2-mcp"
+Repository = "https://github.com/mrorigo/gliner2-mcp"
+
+[project.scripts]
+gliner2-mcp = "gliner2_mcp.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gliner2_mcp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that run real model inference and may download weights",
+]

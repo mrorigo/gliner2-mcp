@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GLiNER2 MCP | Turn Text Into Structured Data</title>
+  <meta name="description" content="GLiNER2 MCP turns messy text into usable entities, labels, and JSON through simple tools your AI agent can call.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #11222a;
+      --muted: #35525e;
+      --paper: #f6f3ea;
+      --card: #fffdfa;
+      --line: #d9d1c2;
+      --pop: #f25f4c;
+      --pop-alt: #1b9aaa;
+      --ok: #0d7a5f;
+      --shadow: 0 16px 44px rgba(17, 34, 42, 0.13);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(1000px 560px at 8% -10%, rgba(242, 95, 76, 0.18), transparent 60%),
+        radial-gradient(900px 540px at 92% -14%, rgba(27, 154, 170, 0.18), transparent 60%),
+        var(--paper);
+      font-family: "IBM Plex Sans Condensed", "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.12;
+      background-image: radial-gradient(circle at 20% 20%, #000 0.4px, transparent 0.4px);
+      background-size: 5px 5px;
+      mix-blend-mode: multiply;
+    }
+
+    .wrap {
+      width: min(1120px, 92vw);
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 24px 0 0;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+
+    .brand {
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--ink);
+      text-decoration: none;
+    }
+
+    .topbar a {
+      color: inherit;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color .2s ease;
+    }
+
+    .topbar a:hover {
+      border-color: currentColor;
+    }
+
+    .hero {
+      position: relative;
+      margin-top: 34px;
+      background: linear-gradient(145deg, #fffefa 0%, #f2f8fb 52%, #fff4ee 100%);
+      border: 1px solid var(--line);
+      border-radius: calc(var(--radius) + 4px);
+      box-shadow: var(--shadow);
+      overflow: clip;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -80px;
+      top: -90px;
+      width: 280px;
+      height: 280px;
+      border-radius: 999px;
+      background: conic-gradient(from 210deg, rgba(242, 95, 76, 0.22), rgba(27, 154, 170, 0.18), rgba(242, 95, 76, 0.22));
+      filter: blur(2px);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.14fr 0.86fr;
+      gap: 28px;
+      align-items: stretch;
+      padding: 48px;
+      position: relative;
+      z-index: 2;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      line-height: 1.08;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4.5vw, 4.2rem);
+      letter-spacing: -0.02em;
+      margin-bottom: 15px;
+      max-width: 14ch;
+    }
+
+    .sub {
+      max-width: 48ch;
+      font-size: clamp(1.03rem, 1.6vw, 1.26rem);
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+
+    .type-line {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.75);
+      font-size: 0.93rem;
+    }
+
+    .pulse {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 0 0 rgba(13, 122, 95, 0.55);
+      animation: pulse 2.2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(13, 122, 95, 0.55); }
+      75% { box-shadow: 0 0 0 12px rgba(13, 122, 95, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(13, 122, 95, 0); }
+    }
+
+    .cta {
+      margin-top: 26px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-weight: 600;
+      font-family: "Space Grotesk", sans-serif;
+      text-decoration: none;
+      transition: transform .22s ease, box-shadow .22s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 22px rgba(17, 34, 42, 0.16);
+    }
+
+    .btn-primary {
+      background: linear-gradient(115deg, var(--pop), #f3853d);
+      color: white;
+    }
+
+    .btn-muted {
+      background: white;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    .console {
+      background: #122834;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #daf0fa;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      padding: 16px;
+      display: grid;
+      gap: 10px;
+      min-height: 250px;
+    }
+
+    .console .line {
+      opacity: 0;
+      transform: translateY(6px);
+      animation: rise .5s forwards;
+    }
+
+    .console .line:nth-child(1) { animation-delay: .2s; }
+    .console .line:nth-child(2) { animation-delay: .45s; }
+    .console .line:nth-child(3) { animation-delay: .72s; }
+    .console .line:nth-child(4) { animation-delay: .95s; }
+    .console .line:nth-child(5) { animation-delay: 1.2s; }
+    .console .line:nth-child(6) { animation-delay: 1.45s; }
+
+    .line .prompt { color: #8be5f4; }
+    .line .ok { color: #8af7b5; }
+
+    @keyframes rise {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    main {
+      padding: 36px 0 76px;
+    }
+
+    .section {
+      margin-top: 30px;
+    }
+
+    .section-title {
+      font-size: clamp(1.3rem, 2.8vw, 2rem);
+      margin-bottom: 14px;
+    }
+
+    .section-lead {
+      color: var(--muted);
+      max-width: 62ch;
+      margin-top: 0;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: 0 10px 20px rgba(17, 34, 42, 0.05);
+    }
+
+    .card h3 {
+      font-size: 1.18rem;
+      margin-bottom: 7px;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .pill {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid #b4ddcf;
+      background: #e6f7f0;
+      color: #13573f;
+      font-size: .83rem;
+      font-weight: 600;
+    }
+
+    .playground {
+      margin-top: 22px;
+      background: linear-gradient(160deg, #fffefa, #f7fcff);
+      border: 1px solid var(--line);
+      border-radius: calc(var(--radius) + 4px);
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .tab-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .tab {
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 9px 12px;
+      font: 600 0.95rem "Space Grotesk", sans-serif;
+      cursor: pointer;
+    }
+
+    .tab.active {
+      border-color: transparent;
+      background: linear-gradient(110deg, rgba(242, 95, 76, 0.15), rgba(27, 154, 170, 0.13));
+      color: #0f2f39;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: white;
+      padding: 12px;
+    }
+
+    .panel h4 {
+      margin: 0 0 8px;
+      font: 600 0.9rem "Space Grotesk", sans-serif;
+      letter-spacing: 0.02em;
+      color: #254453;
+      text-transform: uppercase;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 0.89rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #123445;
+    }
+
+    .steps {
+      margin-top: 28px;
+      display: grid;
+      gap: 9px;
+    }
+
+    .step {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      color: var(--muted);
+    }
+
+    .step b {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 7px;
+      font-family: "Space Grotesk", sans-serif;
+      background: #e9f6fb;
+      color: #14536b;
+      flex-shrink: 0;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity .58s ease, transform .58s ease;
+    }
+
+    .reveal.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    footer {
+      margin-top: 34px;
+      padding: 22px 0;
+      border-top: 1px dashed #c8bbab;
+      color: var(--muted);
+      font-size: .95rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    code {
+      background: #f0ece3;
+      border: 1px solid #e4ddce;
+      border-radius: 8px;
+      padding: 0.12rem 0.4rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .93em;
+    }
+
+    @media (max-width: 950px) {
+      .hero-grid,
+      .grid,
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-grid {
+        padding: 24px;
+      }
+
+      .console {
+        min-height: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <header class="wrap">
+    <div class="topbar">
+      <a class="brand" href="https://github.com/mrorigo/gliner2-mcp">GLiNER2 MCP</a>
+      <span>
+        Local-first extraction tools for AI agents · <a href="https://pypi.org/project/gliner2-mcp/">PyPI v0.1.0</a>
+      </span>
+    </div>
+
+    <section class="hero reveal">
+      <div class="hero-grid">
+        <div>
+          <h1>Make messy text instantly usable.</h1>
+          <p class="sub">
+            GLiNER2 MCP gives your agent three practical superpowers: extract entities, classify meaning, and produce structured JSON from plain language. No model training. No annotation pipeline.
+          </p>
+          <div class="type-line">
+            <span class="pulse" aria-hidden="true"></span>
+            <span id="ticker">Reading invoices, tickets, emails, and support chats</span>
+          </div>
+          <div class="cta">
+            <a class="btn btn-primary" href="https://github.com/mrorigo/gliner2-mcp">Open Repository</a>
+            <a class="btn btn-muted" href="https://pypi.org/project/gliner2-mcp/">Install from PyPI</a>
+            <a class="btn btn-muted" href="../README.md">Read Setup Guide</a>
+          </div>
+          <p style="margin: 12px 0 0; color: var(--muted);">
+            Quick start: <code>uvx gliner2-mcp</code>
+          </p>
+        </div>
+
+        <div class="console" aria-label="Example terminal output">
+          <div class="line"><span class="prompt">$</span> <span>uvx gliner2-mcp</span></div>
+          <div class="line"><span class="ok">[ready]</span> <span>MCP server online (stdio)</span></div>
+          <div class="line"><span class="prompt">tool:</span> <span>extractEntities("Apple CEO Tim Cook...", ...)</span></div>
+          <div class="line"><span class="ok">result:</span> <span>{"company":["Apple"],"person":["Tim Cook"]}</span></div>
+          <div class="line"><span class="prompt">tool:</span> <span>classifyText("Great camera, poor battery...", ...)</span></div>
+          <div class="line"><span class="ok">result:</span> <span>{"sentiment":"negative","aspects":["camera","battery"]}</span></div>
+        </div>
+      </div>
+    </section>
+  </header>
+
+  <main class="wrap">
+    <section class="section reveal">
+      <h2 class="section-title">What Is GLiNER2 (In Human Terms)?</h2>
+      <p class="section-lead">
+        Think of GLiNER2 as a text analyst that follows your instructions at runtime. Instead of asking, "What labels was this model trained for?", you tell it what to find right now. This repo wraps that capability as MCP tools any agent can call.
+      </p>
+      <div class="cards">
+        <article class="card">
+          <h3>1. Entity Extraction</h3>
+          <p>Ask for people, companies, products, locations, custom fields, or domain-specific terms.</p>
+          <span class="pill">Tool: <code>extractEntities</code></span>
+        </article>
+        <article class="card">
+          <h3>2. Classification</h3>
+          <p>Map text into labels you define, including multi-label setups like topic or risk tags.</p>
+          <span class="pill">Tool: <code>classifyText</code></span>
+        </article>
+        <article class="card">
+          <h3>3. JSON Structuring</h3>
+          <p>Pull clean objects from messy prose so downstream workflows can automate with confidence.</p>
+          <span class="pill">Tool: <code>extractJson</code></span>
+        </article>
+      </div>
+    </section>
+
+    <section class="playground reveal" aria-labelledby="play-title">
+      <h2 id="play-title" class="section-title">See The Tools In Action</h2>
+      <p class="section-lead">Switch tasks to preview exactly what your agent sends and receives.</p>
+      <div class="tab-row" role="tablist" aria-label="Task selector">
+        <button class="tab active" data-mode="entities" role="tab" aria-selected="true">Entity Extraction</button>
+        <button class="tab" data-mode="classification" role="tab" aria-selected="false">Classification</button>
+        <button class="tab" data-mode="json" role="tab" aria-selected="false">JSON Extraction</button>
+      </div>
+
+      <div class="grid">
+        <div class="panel">
+          <h4>Input Payload</h4>
+          <pre id="inputPayload"></pre>
+        </div>
+        <div class="panel">
+          <h4>Typical Output</h4>
+          <pre id="outputPayload"></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section reveal">
+      <h2 class="section-title">From Curious To Shipping In Minutes</h2>
+      <div class="steps">
+        <p class="step"><b>1</b><span>Run <code>uvx gliner2-mcp</code> (or <code>uv run gliner2-mcp</code> in-repo).</span></p>
+        <p class="step"><b>2</b><span>Point your MCP client/agent to this server over stdio.</span></p>
+        <p class="step"><b>3</b><span>Call tools with your own labels and schema. Start simple, then increase specificity.</span></p>
+      </div>
+    </section>
+
+    <footer>
+      <span>Built for developers who need structured data from real-world text.</span>
+      <span><a href="https://github.com/mrorigo/gliner2-mcp">GitHub</a> · <a href="https://pypi.org/project/gliner2-mcp/">PyPI</a> · <a href="https://huggingface.co/collections/fastino/gliner2-family">GLiNER2 Family on Hugging Face</a></span>
+    </footer>
+  </main>
+
+  <script>
+    const tickerMessages = [
+      "Reading invoices, tickets, emails, and support chats",
+      "Turning policy text into clean machine-readable fields",
+      "Helping agents act on language instead of just summarizing it"
+    ];
+
+    const samples = {
+      entities: {
+        input: {
+          tool: "extractEntities",
+          text: "Apple CEO Tim Cook unveiled the iPhone 15 Pro in Cupertino.",
+          labels: ["company", "person", "product", "location"]
+        },
+        output: {
+          company: ["Apple"],
+          person: ["Tim Cook"],
+          product: ["iPhone 15 Pro"],
+          location: ["Cupertino"]
+        }
+      },
+      classification: {
+        input: {
+          tool: "classifyText",
+          text: "Great camera, but battery life is disappointing.",
+          schema: {
+            sentiment: ["positive", "negative", "neutral"],
+            aspects: {
+              labels: ["camera", "battery", "display"],
+              multi_label: true,
+              cls_threshold: 0.4
+            }
+          }
+        },
+        output: {
+          sentiment: "negative",
+          aspects: ["camera", "battery"]
+        }
+      },
+      json: {
+        input: {
+          tool: "extractJson",
+          text: "iPhone 15 Pro Max with 256GB storage priced at $1199.",
+          schema: {
+            product: [
+              "name::str::Full product name",
+              "storage::str::Storage capacity",
+              "price::str::Price with currency"
+            ]
+          }
+        },
+        output: {
+          product: [
+            {
+              name: "iPhone 15 Pro Max",
+              storage: "256GB",
+              price: "$1199"
+            }
+          ]
+        }
+      }
+    };
+
+    const tabs = [...document.querySelectorAll('.tab')];
+    const inputPayload = document.getElementById('inputPayload');
+    const outputPayload = document.getElementById('outputPayload');
+    const ticker = document.getElementById('ticker');
+
+    function setMode(mode) {
+      const sample = samples[mode];
+      inputPayload.textContent = JSON.stringify(sample.input, null, 2);
+      outputPayload.textContent = JSON.stringify(sample.output, null, 2);
+
+      tabs.forEach((tab) => {
+        const active = tab.dataset.mode === mode;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-selected', String(active));
+      });
+    }
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => setMode(tab.dataset.mode));
+    });
+
+    let tickerIndex = 0;
+    setInterval(() => {
+      tickerIndex = (tickerIndex + 1) % tickerMessages.length;
+      ticker.style.opacity = '0';
+      setTimeout(() => {
+        ticker.textContent = tickerMessages[tickerIndex];
+        ticker.style.opacity = '1';
+      }, 180);
+    }, 3200);
+
+    setMode('entities');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('show');
+        }
+      });
+    }, { threshold: 0.18 });
+
+    document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
+  </script>
+</body>
+</html>

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gliner2-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP server exposing GLiNER2 entity extraction, classification, and JSON parsing."
 readme = "README.md"
 requires-python = ">=3.12"

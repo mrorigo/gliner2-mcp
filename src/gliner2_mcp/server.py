@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from gliner2 import GLiNER2
 from mcp.server.fastmcp import FastMCP
@@ -51,9 +52,45 @@ class Gliner2Service:
                 "Use GLINER2_MAX_TEXT_LENGTH=0 to disable the limit."
             )
 
-    async def extract_entities(self, text: str, labels: List[str]) -> Dict[str, List[str]]:
-        self._validate_text(text)
-        result = self.model.extract_entities(text, labels)
+    def _resolve_text_input(
+        self, text: Optional[str] = None, filename: Optional[str] = None
+    ) -> str:
+        if (text is None) == (filename is None):
+            raise ValueError("Provide exactly one of 'text' or 'filename'.")
+
+        if text is not None:
+            return text
+
+        assert filename is not None
+        file_path = Path(filename)
+        if file_path.is_absolute():
+            raise ValueError("filename must be a relative path under the current directory.")
+
+        cwd = Path.cwd().resolve()
+        resolved_path = (cwd / file_path).resolve()
+        try:
+            resolved_path.relative_to(cwd)
+        except ValueError as exc:
+            raise ValueError(
+                "filename must resolve inside the current working directory."
+            ) from exc
+
+        if not resolved_path.is_file():
+            raise ValueError(f"File not found: {filename}")
+
+        try:
+            return resolved_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError("File must be UTF-8 text.") from exc
+        except OSError as exc:
+            raise ValueError(f"Unable to read file: {filename}") from exc
+
+    async def extract_entities(
+        self, labels: List[str], text: Optional[str] = None, filename: Optional[str] = None
+    ) -> Dict[str, List[str]]:
+        resolved_text = self._resolve_text_input(text=text, filename=filename)
+        self._validate_text(resolved_text)
+        result = self.model.extract_entities(resolved_text, labels)
         if isinstance(result, dict):
             entities = result.get("entities")
             if isinstance(entities, dict):
@@ -66,10 +103,14 @@ class Gliner2Service:
         raise ValueError("Unexpected response shape from GLiNER2.extract_entities")
 
     async def classify_text(
-        self, text: str, schema: ClassificationSchema
+        self,
+        schema: ClassificationSchema,
+        text: Optional[str] = None,
+        filename: Optional[str] = None,
     ) -> Dict[str, ClassificationValue]:
-        self._validate_text(text)
-        outputs = self.model.classify_text(text, schema)
+        resolved_text = self._resolve_text_input(text=text, filename=filename)
+        self._validate_text(resolved_text)
+        outputs = self.model.classify_text(resolved_text, schema)
         if not isinstance(outputs, dict):
             raise ValueError("Unexpected response shape from GLiNER2.classify_text")
 
@@ -81,9 +122,12 @@ class Gliner2Service:
                 out[field] = str(result)
         return out
 
-    async def extract_json(self, text: str, schema: Dict[str, Any]) -> Any:
-        self._validate_text(text)
-        return self.model.extract_json(text, schema)
+    async def extract_json(
+        self, schema: Dict[str, Any], text: Optional[str] = None, filename: Optional[str] = None
+    ) -> Any:
+        resolved_text = self._resolve_text_input(text=text, filename=filename)
+        self._validate_text(resolved_text)
+        return self.model.extract_json(resolved_text, schema)
 
 
 def create_server(settings: Settings) -> FastMCP:
@@ -93,15 +137,19 @@ def create_server(settings: Settings) -> FastMCP:
     mcp = FastMCP("gliner2")
 
     @mcp.tool()
-    async def extractEntities(text: str, labels: List[str]) -> Dict[str, List[str]]:
+    async def extract_entities(
+        labels: List[str], text: Optional[str] = None, filename: Optional[str] = None
+    ) -> Dict[str, List[str]]:
         """
         Extract named entities from free text using an explicit label list.
 
         Args:
-            text: Raw text to analyze. Keep the full sentence/paragraph context for best results.
             labels: Entity types to extract, for example
                 ["person", "company", "product", "location"].
                 Labels are schema-driven prompts, not fixed model classes.
+            text: Raw text to analyze. Keep the full sentence/paragraph context for best results.
+            filename: Relative path (from current working directory) to a UTF-8 text file.
+                Exactly one of `text` or `filename` must be provided.
 
         Returns:
             Dict[str, List[str]] where each requested label maps to extracted surface forms.
@@ -118,21 +166,22 @@ def create_server(settings: Settings) -> FastMCP:
             }
 
         Notes:
+            - Provide exactly one of `text` or `filename`.
+            - `filename` must resolve inside the current working directory.
             - If GLINER2_MAX_TEXT_LENGTH is configured and exceeded, the tool raises ValueError.
             - Output values are plain strings (no offsets/confidence in this tool contract).
         """
 
-        return await service.extract_entities(text, labels)
+        return await service.extract_entities(labels=labels, text=text, filename=filename)
 
     @mcp.tool()
-    async def classifyText(
-        text: str, schema: ClassificationSchema
+    async def classify_text(
+        schema: ClassificationSchema, text: Optional[str] = None, filename: Optional[str] = None
     ) -> Dict[str, ClassificationValue]:
         """
         Run schema-driven text classification tasks (single-label or multi-label).
 
         Args:
-            text: Input text to classify.
             schema: Task definition mapping task name -> config.
                 Supported forms:
                 - Single-label task:
@@ -145,6 +194,9 @@ def create_server(settings: Settings) -> FastMCP:
                             "cls_threshold": 0.4
                         }
                     }
+            text: Input text to classify.
+            filename: Relative path (from current working directory) to a UTF-8 text file.
+                Exactly one of `text` or `filename` must be provided.
 
         Returns:
             Dict[str, str | List[str]]:
@@ -160,18 +212,21 @@ def create_server(settings: Settings) -> FastMCP:
 
         Notes:
             - Use distinct task names (dict keys) because they become output keys.
+            - Provide exactly one of `text` or `filename`.
+            - `filename` must resolve inside the current working directory.
             - If GLINER2_MAX_TEXT_LENGTH is configured and exceeded, the tool raises ValueError.
         """
 
-        return await service.classify_text(text, schema)
+        return await service.classify_text(schema=schema, text=text, filename=filename)
 
     @mcp.tool()
-    async def extractJson(text: str, schema: Dict[str, Any]) -> Any:
+    async def extract_json(
+        schema: Dict[str, Any], text: Optional[str] = None, filename: Optional[str] = None
+    ) -> Any:
         """
         Extract structured JSON from text using GLiNER2 structure schema syntax.
 
         Args:
-            text: Source text containing structured facts.
             schema: Structure specification dictionary. Common pattern:
                 {
                     "product": [
@@ -180,6 +235,9 @@ def create_server(settings: Settings) -> FastMCP:
                         "features::list::List of key features"
                     ]
                 }
+            text: Source text containing structured facts.
+            filename: Relative path (from current working directory) to a UTF-8 text file.
+                Exactly one of `text` or `filename` must be provided.
 
         Returns:
             JSON-serializable object, typically Dict[str, List[Dict[str, Any]]],
@@ -192,9 +250,30 @@ def create_server(settings: Settings) -> FastMCP:
 
         Notes:
             - Field specs use "field_name::dtype::description" format.
+            - Provide exactly one of `text` or `filename`.
+            - `filename` must resolve inside the current working directory.
             - If GLINER2_MAX_TEXT_LENGTH is configured and exceeded, the tool raises ValueError.
         """
 
-        return await service.extract_json(text, schema)
+        return await service.extract_json(schema=schema, text=text, filename=filename)
+
+    # Backward-compatible aliases for existing clients using camelCase tool names.
+    @mcp.tool()
+    async def extractEntities(
+        labels: List[str], text: Optional[str] = None, filename: Optional[str] = None
+    ) -> Dict[str, List[str]]:
+        return await extract_entities(labels=labels, text=text, filename=filename)
+
+    @mcp.tool()
+    async def classifyText(
+        schema: ClassificationSchema, text: Optional[str] = None, filename: Optional[str] = None
+    ) -> Dict[str, ClassificationValue]:
+        return await classify_text(schema=schema, text=text, filename=filename)
+
+    @mcp.tool()
+    async def extractJson(
+        schema: Dict[str, Any], text: Optional[str] = None, filename: Optional[str] = None
+    ) -> Any:
+        return await extract_json(schema=schema, text=text, filename=filename)
 
     return mcp

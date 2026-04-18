@@ -32,9 +32,16 @@ If `GLINER2_MCP_ENV_FILE` is not set, the server will load `.env` from the worki
 
 ## MCP tools
 
-- `extractEntities(text, labels)` returns a mapping of label to entity spans.
-- `classifyText(text, schema)` returns a mapping of field name to chosen label or list of labels.
-- `extractJson(text, schema)` returns a JSON object that matches the provided schema.
+- `extract_entities(labels, text=None, filename=None)` returns a mapping of label to entity spans.
+- `classify_text(schema, text=None, filename=None)` returns a mapping of field name to chosen label or list of labels.
+- `extract_json(schema, text=None, filename=None)` returns a JSON object that matches the provided schema.
+
+For all tools, provide exactly one of `text` or `filename`:
+- `text`: inline input text.
+- `filename`: UTF-8 text file path relative to the current working directory. Absolute paths and paths resolving outside the current working directory are rejected.
+
+Legacy camelCase aliases are still available for compatibility:
+`extractEntities`, `classifyText`, `extractJson`.
 
 ## Available Models
 
